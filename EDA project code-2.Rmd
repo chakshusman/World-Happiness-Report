@@ -1,0 +1,471 @@
+---
+title: "EDA project"
+author: "Abhinav Ache"
+date: '2022-11-27'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+library(gapminder)
+library(GGally)
+library(MASS)
+```
+
+```{r}
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+```
+
+```{r}
+Happiness_data = read_xls('Happiness_data.xls')  #data from https://worldhappiness.report/
+europe_data = read_xls('sub_europe.xls') 
+```
+
+```{r}
+names(Happiness_data) <- c("country", "year", "happiness_score", "Log_GDP_per_capita", "social_support", "life_expectancy", "freedom_to_make_life_choices", "generosity", "perceptions_of_corruption", "positive_affect", "negative_affect", "confidence_in_national_government")
+```
+
+```{r}
+# Extracting only the required columns
+Happiness_new = Happiness_data[, c("country", "year", "happiness_score", "Log_GDP_per_capita", "life_expectancy")]
+```
+
+```{r}
+# Removing the null values
+Happiness_new = na.omit(Happiness_new)
+```
+
+```{r}
+# Pairwise Plots
+ggpairs(Happiness_new[, c("happiness_score", "Log_GDP_per_capita", "life_expectancy")])+
+  ggtitle("Fig 1: Pairwise plots between 'Happiness score','GDP per capita' and 'life expectancy'")
+```
+
+# Distribution of the data
+
+```{r}
+summary(Happiness_new)
+```
+
+
+```{r}
+hist(Happiness_new$year, xlab = "year Score", main = "Distribution of year")
+```
+
+```{r}
+hist(Happiness_new$happiness_score, xlab = "Hapiness Score", main = "Distribution of Happiness score")
+```
+
+```{r}
+hist(Happiness_new$Log_GDP_per_capita, xlab = "GDP per capita(log scale)", main = "Distribution of GDP per capita")
+```
+
+```{r}
+hist(Happiness_new$life_expectancy, xlab = "life expectancy", main = "Distribution of life expectancy")
+```
+
+
+
+
+```{r}
+Happiness_new = Happiness_new %>% filter(Log_GDP_per_capita >= 6)
+```
+
+
+# Finding the relationship between Log_GDP and Happiness Score
+
+
+
+```{r}
+ggplot(Happiness_new, aes(x = Log_GDP_per_capita, y = happiness_score)) + geom_point(alpha = 0.4,size = 0.5) +
+  geom_smooth(method = "loess", se = FALSE) +
+  geom_smooth(method = "lm", se = FALSE, color = "orange") +
+  xlab('GDP per capita, log scale') +
+  scale_color_manual(values = cbPalette)+
+  ylab('Happiness Score') +
+  ggtitle('Figure 2: Log GDP per capita vs. Happiness score') + 
+  labs(caption = "Data Source: https://worldhappiness.report/", subtitle = "Orange line indicates a linear model, while Blue curve indicates a loess fit")
+```
+
+```{r}
+ggplot(Happiness_new, aes(x = Log_GDP_per_capita, y = happiness_score)) + geom_point(alpha = 0.3,size = 0.6) +
+  facet_wrap(~cut_number(year,n=4),ncol=2) + geom_smooth(method = "lm", se = FALSE,size =0.85) +
+  geom_smooth(method = "gam",se = FALSE , span =0.5,color= "orange",size =0.85)+
+  geom_smooth(method="loess",se = FALSE,color="green",size =0.85)+
+  xlab('GDP per capita, log scale') +
+  ylab('Happiness Score') +
+  ggtitle('Figure 3: Log GDP per capita vs. Happiness score for different time periods') +
+  labs(caption = "Data Source: https://worldhappiness.report/", subtitle = "Blue line indicates a linear model,Orange Indicates GAM, Green indicates loess")
+```
+
+```{r}
+Happiness_new = Happiness_new %>% filter(year != 2005)
+```
+
+
+# Adding continent data for better analysis 
+
+Adding Continent column from the gapminder dataset. 
+```{r}
+continents = gapminder[, c("country", "continent")]
+```
+
+
+
+```{r}
+continents = continents[!duplicated(continents$country), ]
+```
+
+```{r}
+df = merge(x = Happiness_new, y = continents, by = "country")
+```
+
+Check for null values
+```{r}
+sum(is.na(df[5]))
+```
+
+
+
+# How does happiness score vary with GDP per capita across various continents?
+
+```{r}
+df %>% filter(continent != "Oceania") %>%
+        ggplot(aes(x = Log_GDP_per_capita, y = happiness_score)) + geom_point(alpha = 0.5,size = 0.8) +
+          facet_wrap(~continent) +
+  geom_smooth(se = FALSE) +
+  geom_smooth(method = "lm", se = FALSE, color = "orange") +
+  xlab('GDP per capita, log scale') +
+  ylab('Happiness Score') +
+  ggtitle('Figure 4: Log GDP per capita vs. Happiness score faceted by continent') +
+  labs(caption = "Data Source: https://worldhappiness.report/", subtitle = "Orange line indicates a linear model, while Blue curve indicates a loess fit")
+```
+
+
+# Dividing the europe into the sub regions and checking the relationship bwtween happiness_score and Log_GDP_per_Capita
+
+```{r}
+europe = filter(df,continent=='Europe')
+#europe
+```
+
+
+```{r}
+europe_subregion = europe_data[!duplicated(europe_data$country), ]
+#europe_subregion
+```
+
+```{r}
+europe_new = merge(x = europe, y = europe_subregion, by = "country")
+```
+
+
+
+```{r}
+ggplot(europe_new,aes(x = Log_GDP_per_capita, y = happiness_score)) + geom_point() +
+          facet_wrap(~region) +
+  geom_smooth(se = FALSE) +
+  geom_smooth(method = "lm", se = FALSE, color = "orange") +
+  xlab('GDP per capita, log scale') +
+  ylab('Happiness Score')
+```
+
+# Dividing western_europe and Northern Europe based on different time periods and checking the relationship
+
+
+```{r}
+europe_new %>% filter(region == "Northern Europe")%>%
+  ggplot(aes(x=Log_GDP_per_capita,y=happiness_score))+geom_point()+geom_smooth()+
+  facet_grid(~cut_number(year,n=3))+
+  geom_smooth(method="lm",color="orange")
+  
+```
+
+
+```{r}
+europe_new %>% filter(region == "Western Europe")%>%
+  ggplot(aes(x=Log_GDP_per_capita,y=happiness_score))+geom_point()+geom_smooth(se = FALSE)+
+  facet_grid(~cut_number(year,n=3))+
+  geom_smooth(method="lm",color="orange",se= FALSE)
+  
+```
+
+
+## Relationship between Happiness_Score and Life_expectancy
+
+```{r}
+df %>% filter(continent != "Oceania")%>%
+  filter(country != "Haiti") %>%
+  ggplot(aes(x =life_expectancy, y = happiness_score)) + geom_point(size = 0.7) +
+  geom_smooth(method = "loess", se = FALSE) +
+  geom_smooth(method = "lm", se = FALSE, color = "orange") +
+  geom_smooth(method="gam",se=FALSE,color = "green")+
+  #geom_smooth(method="rlm",se=FALSE,color="violet")+
+  xlab('Life Expectancy') +
+  ylab('Happiness Score') +
+  ggtitle('Figure 6: Life Expectancy vs. Happiness score') + 
+  labs(caption = "Data Source: https://worldhappiness.report/", subtitle = "Orange line indicates a linear model, while Blue curve indicates a loess fit,green = GAM, Violet = rlm")
+```
+
+lets facet by year and see
+
+```{r}
+df %>% filter(continent != "Oceania")%>%
+  filter(country != "Haiti") %>%ggplot( aes(x =life_expectancy, y = happiness_score)) + geom_point(size = 0.8) +
+  facet_grid(~cut_number(year,n=4))+
+  geom_smooth(method = "loess", se = FALSE) +
+  geom_smooth(method = "lm", se = FALSE, color = "orange") +
+  geom_smooth(method="gam",se=FALSE,color = "green")+
+  #geom_smooth(method="rlm",se=FALSE,color="violet")+
+  xlab('Life_Expectancy') +
+  ylab('Happiness Score') +
+  ggtitle('Fig 7: Life expectancy vs. Happiness score facted By different time periods') + 
+  labs(caption = "Data Source: https://worldhappiness.report/", subtitle = "Orange line indicates a linear model, while Blue curve indicates a loess fit,green indicates GAM fit")
+
+
+```
+
+
+
+
+
+
+```{r}
+ggplot(df, aes(x = Log_GDP_per_capita, y = happiness_score)) + geom_point() +
+  facet_wrap(~cut_number(life_expectancy,n=6),ncol=2)+
+  geom_smooth(method = "loess", se = FALSE) +
+  geom_smooth(method = "lm", se = FALSE, color = "orange") +
+  geom_smooth(method="gam",se=FALSE,color = "green")+
+  geom_smooth(method="rlm",se=FALSE,color="violet")+
+  xlab('Log_GDP') +
+  ylab('Happiness Score') +
+  ggtitle('Log GDP per capita vs. Happiness score conditioned on life_expectancy') + 
+  labs(caption = "Data Source: https://worldhappiness.report/", subtitle = "Orange line indicates a linear model, while Blue curve indicates a loess fit")
+
+```
+
+
+
+```{r}
+df %>% filter(continent != "Oceania")%>%
+  filter(country != "Haiti") %>%
+  ggplot(aes(x = life_expectancy, y = happiness_score)) + geom_point(alpha = 0.5,size = 0.9) +
+  facet_wrap(~continent,ncol=2)+
+  #facet_grid(~cut_number(life_expectancy,n=6))+
+  geom_smooth(method = "loess", se = FALSE,color="orange") +
+  geom_smooth(method = "lm", se = FALSE) +
+  #geom_smooth(method="gam",se=FALSE,color = "green")+
+  #geom_smooth(method="rlm",se=FALSE,color="violet")+
+  xlab('life_expectancy') +
+  ylab('Happiness Score') +
+  ggtitle('Figure 8: Life expectancy vs. Happiness score faceted by continents') + 
+  labs(caption = "Data Source: https://worldhappiness.report/", subtitle = "Orange line indicates a linear model, while Blue curve indicates a loess fit")
+  
+```
+```{r}
+df2 = df %>% filter(continent != "Oceania")%>%
+  filter(country != "Haiti")
+```
+
+
+
+# Creating a models
+
+```{r}
+model1 = lm(happiness_score ~ Log_GDP_per_capita+life_expectancy+continent+Log_GDP_per_capita:continent+life_expectancy:continent, data = df2)
+```
+
+
+```{r}
+library(mgcv)
+```
+
+```{r}
+model2 = gam(happiness_score ~ Log_GDP_per_capita+s(life_expectancy)+continent:Log_GDP_per_capita, data = df2)
+```
+
+```{r}
+plot(model2)
+```
+
+```{r}
+summary(model1)
+```
+
+
+```{r}
+summary(model2)
+```
+
+# Plotting the co-efficients for model 1
+
+```{r}
+model1.effects = dummy.coef(model1)
+model1.effects
+```
+
+
+
+```{r}
+model1.effects$`Log_GDP_per_capita:continent`+model1.effects$Log_GDP_per_capita
+```
+
+```{r}
+model1_gdg_slopes = as.vector(model1.effects$`Log_GDP_per_capita:continent`+model1.effects$Log_GDP_per_capita)
+model1_life = as.vector(model1.effects$`life_expectancy:continent` +model1.effects$life_expectancy)
+continent = c("Africa","Americas","Asia","Europe")
+model1.coeff = data.frame(continent,Log_GDP_per_capita = model1_gdg_slopes, life_expectancy = model1_life )
+```
+
+```{r}
+ggplot(model1.coeff,aes(x=continent,y=Log_GDP_per_capita))+geom_point()+ylab("Co-efficients for 'Log GDP per capita'")+
+  ggtitle("Model 1: Co-efficients of 'Log GDP per capita' for different continents")
+```
+
+```{r}
+ggplot(model1.coeff,aes(x=continent,y=life_expectancy))+geom_point()+ylab("Co-efficients for 'Life expectancy'")+
+  ggtitle(" Model 1: Co-efficients of 'Life Expectancy' for different continents")
+```
+
+# Plotting the co-efficients for model 2
+
+```{r}
+model2.effects = dummy.coef(model2)
+model2.effects
+```
+
+
+```{r}
+model2_gdg_slopes = as.vector(model2.effects$`Log_GDP_per_capita:continent`+model2.effects$Log_GDP_per_capita)
+continent = c("Africa","Americas","Asia","Europe")
+model2.coeff = data.frame(continent,Log_GDP_per_capita = model2_gdg_slopes )
+```
+
+
+```{r}
+ggplot(model2.coeff,aes(x=continent,y=Log_GDP_per_capita))+geom_point()+ylab("Co-efficients for 'Log GDP per capita'")+
+  ggtitle(" Co-efficients of 'Log GDP per capita' for different continents")
+```
+
+## Visualization of Fit for Model 1
+
+```{r}
+data.grid = expand.grid(continent = unique(df2$continent),
+                        Log_GDP_per_capita = seq(6,12,1),
+                        life_expectancy = seq(45,80,5))
+```
+
+```{r}
+data.predict = predict(model1, newdata = data.grid)
+
+data.grid$.fit = as.vector(data.predict)
+
+```
+
+```{r}
+# As all the countries in Europe have GDP higher than 9 in all the years, I want to remove countries in Europe with GDP lower than 9 since they may give incorrect or negative predictions
+data.grid %>% filter( .fit>2)%>% 
+  ggplot(aes(x=Log_GDP_per_capita,y= .fit,color = continent))+geom_line()+facet_wrap(~cut_number(life_expectancy,n=8),ncol=4)
+```
+
+```{r}
+# As all the countries in Europe have GDP higher than 9 in all the years, I want to remove countries in Europe with GDP lower than 9 since they may give incorrect or negative predictions
+data.grid %>% filter( .fit>2)%>% 
+  ggplot(aes(x=Log_GDP_per_capita,y= .fit,group = life_expectancy,color = life_expectancy))+
+  geom_line()+facet_wrap(~continent,ncol=2)+scale_color_viridis_c()+ylab("fitted Values")+
+  ggtitle("Fig 9: Visualization of fit for model 1")
+```
+
+## Visualization of Fit for Model 2
+```{r}
+data.grid2 = expand.grid(continent = unique(df2$continent),
+                        Log_GDP_per_capita = seq(6,12,1),
+                        life_expectancy = seq(45,80,5))
+```
+
+
+```{r}
+data.predict2 = predict(model2, newdata = data.grid2)
+
+data.grid2$.fit = as.vector(data.predict2)
+
+```
+
+
+```{r}
+# As all the countries in Europe have GDP higher than 9 in all the years, I want to remove countries in Europe with GDP lower than 9 since they may give incorrect or negative predictions
+data.grid2 %>% filter( .fit>2)%>% 
+  ggplot(aes(x=life_expectancy ,y= .fit,group = Log_GDP_per_capita,color = Log_GDP_per_capita))+
+  geom_line()+facet_wrap(~continent)+
+  scale_color_viridis_c()+
+  ggtitle("Fig 10: Visualization of fit for model 2")
+```
+
+
+# seeing the fitted values of all the above models for year 2018
+
+
+```{r}
+model1.df = data.frame(df2,.fitted = fitted.values(model1),.resid =residuals(model1))
+```
+```{r}
+model2.df = data.frame(df2,.fitted = fitted.values(model2),.resid =residuals(model2))
+
+```
+
+
+## plotting Fitted Values vs happiness score 
+
+```{r}
+model1.df %>% filter(year==2018)%>%
+  ggplot(aes(y=.fitted,x=happiness_score))+geom_point()
+```
+
+```{r}
+model2.df %>% filter(year==2018)%>%
+  ggplot(aes(y=.fitted,x=happiness_score))+geom_point()
+```
+
+
+## plotting Fitted Values vs Log_GDP
+
+
+```{r}
+model1.df %>% filter(year==2018)%>%
+  ggplot(aes(y=.fitted,x=Log_GDP_per_capita,color=continent))+geom_point()+scale_color_manual(values = cbPalette)+geom_smooth()+ggtitle("Fitted Values for year 2018 with Model 1")
+```
+
+```{r}
+model2.df %>% filter(year==2018)%>%
+  ggplot(aes(y=.fitted,x=Log_GDP_per_capita,color=continent))+geom_point()+scale_color_manual(values = cbPalette)+geom_smooth(se =FALSE)
+```
+
+## checking the residuals for different models
+
+
+```{r}
+model1.df %>% filter(year==2018)%>%
+  ggplot(aes(y=.resid,x=Log_GDP_per_capita))+geom_point()+scale_color_manual(values = cbPalette)+geom_hline(yintercept = 0)+geom_smooth(se = FALSE)
+```
+
+
+```{r}
+model2.df %>% filter(year==2018)%>%
+  ggplot(aes(y=.resid,x=Log_GDP_per_capita))+geom_point()+scale_color_manual(values = cbPalette)+geom_hline(yintercept = 0)+geom_smooth(se = FALSE)
+```
+
+## checking Fitted vs Residuals
+
+```{r}
+model1.df %>% filter(year==2018)%>%
+  ggplot(aes(y=.resid,x= .fitted))+geom_point()+scale_color_manual(values = cbPalette)+geom_smooth(method = "lm",se = FALSE)
+```
+
+
+```{r}
+model2.df %>% filter(year==2018)%>%
+  ggplot(aes(y=.resid,x= .fitted))+geom_point()+scale_color_manual(values = cbPalette)+geom_smooth(method = "lm",se = FALSE)
+```
+
